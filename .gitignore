@@ -168,4 +168,4 @@ cython_debug/
 *.vsix
 
 ## Custom
-ml-latest*
+ml-latest*zip
