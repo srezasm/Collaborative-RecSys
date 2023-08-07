@@ -168,4 +168,6 @@ cython_debug/
 *.vsix
 
 ## Custom
-ml-latest*zip
+ml-latest*
+!jupyter-docs/ml-latest-small
+test.ipynb
