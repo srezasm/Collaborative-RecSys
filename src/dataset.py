@@ -1,54 +1,64 @@
 import torch
 from torch.utils.data import Dataset
 import pandas as pd
+import numpy as np
 from typing import Any
 
 
-# TODO: movie/user filtering
-
 class MovieLensDataset(Dataset):
-    def __init__(self, movies_file, ratings_file) -> None:
+    def __init__(self, movies_file, ratings_file, rated_movie_ids: list) -> None:
         super().__init__()
 
         self.movies_df = pd.read_csv(
             movies_file, header=0,  delimiter=',', quotechar='"')
+
+        # Filter the movies with rated genres
+        genres = set()
+        for movie_id in rated_movie_ids:
+            cur_genres = self.movies_df.loc[
+                self.movies_df['movieId'] == movie_id, 'genres'
+            ].str.split('|').explode()
+
+            genres.update(cur_genres)
+
+        self.movies_df = self.movies_df[
+            self.movies_df['genres'].str.contains('|'.join(genres))
+        ]
+
+        # ignore other movie ratings
+        # remove the users that haven't rated any of the selected movies
         self.ratings_df = pd.read_csv(
             ratings_file, header=0,  delimiter=',', quotechar='"')
 
-        # remove unrated movies
-        rated_movie_ids = self.ratings_df['movieId'].unique()
-        rated_movie_ids.sort()
-        self.movies_df = self.movies_df[self.movies_df['movieId'].isin(rated_movie_ids)]
+        self.ratings_df = self.ratings_df[
+            self.ratings_df['movieId'].isin(self.movies_df['movieId'])
+        ]        
 
-        # replace movieId with a continues list
-        ids_map = dict(
-            zip(rated_movie_ids, range(len(rated_movie_ids)))
-        )
-        self.movies_df['movieId'] = self.movies_df['movieId'].replace(ids_map)
-        self.ratings_df['movieId'] = self.ratings_df['movieId'].replace(ids_map)
+        # re-index users
+        
 
-        self.num_users = self.ratings_df['userId'].max()
-
-        print('num_users:', self.num_users)
-        print('num movies', len(self.movies_df))
-        print('min movieId', self.movies_df['movieId'].min())
-        print('max movieId', self.movies_df['movieId'].max())
+        self.num_users = len(self.ratings_df['userId'].unique())
+        self.num_movies = len(self.movies_df)
 
     def __getitem__(self, index) -> Any:
-        y = torch.zeros(self.num_users, dtype=torch.float32)
+        y = torch.zeros(self.num_users)
+
+        movie_id = self.movies_df.iloc[index, 0]
 
         rated_users = self.ratings_df.loc[
-            self.ratings_df['movieId'] == index, ['userId', 'rating']
+            self.ratings_df['movieId'] == movie_id, ['userId', 'rating']
         ]
 
-        y[(rated_users['userId'] - 1).tolist()] = torch.tensor(
-            rated_users['rating'].tolist(), dtype=torch.float32)
+        # print(len(rated_users['rating']))         76813
+        # print(len(rated_users['userId'] - 1))     76813
+        # print(y.shape)                            316725
+        y[(rated_users['userId'] - 1).tolist()] = torch.tensor(rated_users['rating'].tolist())
 
-        mean = y.mean(axis=2)
+        mean = y.mean()
 
         y_norm = y - mean
 
         return y_norm
 
     def __len__(self):
-        return len(self.movies_df)
+        return self.num_movies

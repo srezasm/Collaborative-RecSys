@@ -17,7 +17,7 @@ class CoFilModel(nn.Module):
         nn.init.kaiming_uniform_(self.X)
         nn.init.kaiming_uniform_(self.W)
         fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.W)
-        bound = 1 / math.sqrt(fan_in)
+        bound = 1 / math.sqrt(fan_in)""
         nn.init.uniform_(self.b, -bound, bound)
 
     def forward(self):
